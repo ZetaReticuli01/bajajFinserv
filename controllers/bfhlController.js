@@ -14,11 +14,7 @@ exports.handlePost = async (req, res) => {
     const keys = Object.keys(body);
 
     if (keys.length !== 1) {
-      return res.status(400).json({
-        is_success: false,
-        official_email: process.env.OFFICIAL_EMAIL,
-        error: "Exactly one key required"
-      });
+      return badRequest(res, "Exactly one key required");
     }
 
     const key = keys[0];
@@ -53,13 +49,11 @@ exports.handlePost = async (req, res) => {
         return success(res, aiResponse);
 
       default:
-        return res.status(400).json({
-          is_success: false,
-          official_email: process.env.OFFICIAL_EMAIL,
-          error: "Invalid key"
-        });
+        return badRequest(res, "Invalid key");
     }
+
   } catch (err) {
+    console.log("SERVER ERROR:", err.message);
     return res.status(500).json({
       is_success: false,
       official_email: process.env.OFFICIAL_EMAIL,
@@ -76,21 +70,32 @@ function success(res, data) {
   });
 }
 
-function badRequest(res) {
+function badRequest(res, message = "Invalid input") {
   return res.status(400).json({
     is_success: false,
     official_email: process.env.OFFICIAL_EMAIL,
-    error: "Invalid input"
+    error: message
   });
 }
-
 async function callGemini(question) {
-  const response = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
-    {
-      contents: [{ parts: [{ text: question + " Answer in one word only." }] }]
-    }
-  );
+  try {
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: `${question} Answer in one word only.` }]
+          }
+        ]
+      }
+    );
 
-  return response.data.candidates[0].content.parts[0].text.trim();
+    return response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "No response";
+
+  } catch (error) {
+    console.log("FULL GEMINI ERROR:");
+    console.log(error.response?.data || error.message);
+    throw error;
+  }
 }
